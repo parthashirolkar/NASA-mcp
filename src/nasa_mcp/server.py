@@ -1,3 +1,6 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from helper_functions import _encode_image
 import io
 import aiohttp
@@ -9,24 +12,18 @@ from mcp.types import ImageContent
 from aiohttp import ClientTimeout
 import pandas as pd
 from typing import List, Dict, Any, Optional, Union
-import smithery
+from smithery import from_fastmcp
+from pydantic import BaseModel
 
 
-@smithery.server(
-    config_schema={
-        "type": "object",
-        "properties": {
-            "nasa_api_key": {
-                "type": "string",
-                "description": "NASA API key from api.nasa.gov for accessing NASA APIs",
-            }
-        },
-        "required": ["nasa_api_key"],
-    }
-)
+class NASAConfig(BaseModel):
+    nasa_api_key: str
+
+
 def create_server(config=None):
     """Create and return the NASA MCP server instance."""
-    mcp = FastMCP("NASA MCP")
+    base_mcp = FastMCP("NASA MCP")
+    mcp = from_fastmcp(base_mcp, config_schema=NASAConfig)
 
     @mcp.tool()
     async def get_picture_of_the_day(nasa_api_key: str) -> ImageContent:

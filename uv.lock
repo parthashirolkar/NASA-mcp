@@ -708,7 +708,7 @@ wheels = [
 [[package]]
 name = "nasa-mcp"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "fastmcp" },
@@ -716,6 +716,7 @@ dependencies = [
     { name = "mcp", extra = ["cli"] },
     { name = "pandas" },
     { name = "pillow" },
+    { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "pytz" },
     { name = "requests" },
@@ -731,6 +732,7 @@ requires-dist = [
     { name = "mcp", extras = ["cli"], specifier = ">=1.13.1" },
     { name = "pandas", specifier = ">=2.3.2" },
     { name = "pillow", specifier = ">=11.3.0" },
+    { name = "pydantic", specifier = ">=2.0.0" },
     { name = "python-dotenv", specifier = ">=1.1.1" },
     { name = "pytz", specifier = ">=2025.2" },
     { name = "requests", specifier = ">=2.32.5" },
