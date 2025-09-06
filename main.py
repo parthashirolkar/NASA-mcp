@@ -9,7 +9,7 @@ from pytz import timezone
 from mcp.types import ImageContent
 from aiohttp import ClientTimeout
 import pandas as pd
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 
 
 _ = load_dotenv()
@@ -207,7 +207,7 @@ async def get_mars_rover_photos(
     camera: Optional[str] = None,
     page: int = 1,
     return_images: bool = False,
-) -> List[Dict[str, Any]]:
+) -> Union[List[Dict[str, Any]], List[ImageContent]]:
     """
     Get photos from Mars rovers (Curiosity, Opportunity, Spirit, Perseverance).
     Requires a valid NASA API key.
@@ -250,41 +250,43 @@ async def get_mars_rover_photos(
         photos = data.get("photos", data.get("latest_photos", []))
 
         # Process and return photo data
-        result = []
-        for photo in photos:
-            photo_data = {
-                "id": photo.get("id"),
-                "img_src": photo.get("img_src"),
-                "earth_date": photo.get("earth_date"),
-                "sol": photo.get("sol"),
-                "camera_name": photo.get("camera", {}).get("full_name"),
-                "camera_abbrev": photo.get("camera", {}).get("name"),
-                "rover_name": photo.get("rover", {}).get("name"),
-                "rover_status": photo.get("rover", {}).get("status"),
-                "rover_launch_date": photo.get("rover", {}).get("launch_date"),
-                "rover_landing_date": photo.get("rover", {}).get("landing_date"),
-            }
-
-            # Optionally download and encode the actual image
-            if return_images and photo.get("img_src"):
-                try:
-                    async with session.get(photo["img_src"]) as img_response:
-                        if img_response.status == 200:
-                            img_bytes = await img_response.read()
-                            image = PILImage.open(io.BytesIO(img_bytes))
-                            photo_data["image"] = _encode_image(image)
-                        else:
-                            photo_data["image_error"] = (
-                                f"Failed to download image: status {img_response.status}"
-                            )
-                except Exception as img_error:
-                    photo_data["image_error"] = (
-                        f"Image processing error: {str(img_error)}"
-                    )
-
-            result.append(photo_data)
-
-        return result
+        if return_images:
+            # Return ImageContent objects for client rendering
+            images = []
+            for photo in photos:
+                if photo.get("img_src"):
+                    try:
+                        async with session.get(photo["img_src"]) as img_response:
+                            if img_response.status == 200:
+                                img_bytes = await img_response.read()
+                                image = PILImage.open(io.BytesIO(img_bytes))
+                                images.append(_encode_image(image))
+                    except Exception as img_error:
+                        # Create error image for failed downloads
+                        error_image = PILImage.new("RGB", (400, 100), color="red")
+                        print(
+                            f"Image processing error for {photo.get('id')}: {str(img_error)}"
+                        )
+                        images.append(_encode_image(error_image))
+            return images
+        else:
+            # Return metadata only
+            result = []
+            for photo in photos:
+                photo_data = {
+                    "id": photo.get("id"),
+                    "img_src": photo.get("img_src"),
+                    "earth_date": photo.get("earth_date"),
+                    "sol": photo.get("sol"),
+                    "camera_name": photo.get("camera", {}).get("full_name"),
+                    "camera_abbrev": photo.get("camera", {}).get("name"),
+                    "rover_name": photo.get("rover", {}).get("name"),
+                    "rover_status": photo.get("rover", {}).get("status"),
+                    "rover_launch_date": photo.get("rover", {}).get("launch_date"),
+                    "rover_landing_date": photo.get("rover", {}).get("landing_date"),
+                }
+                result.append(photo_data)
+            return result
 
     except Exception as e:
         print(f"Error occurred while fetching Mars rover photos: {e}")
@@ -294,7 +296,7 @@ async def get_mars_rover_photos(
 @mcp.tool()
 async def get_latest_mars_photos(
     nasa_api_key: str, rover: str, return_images: bool = False
-) -> List[Dict[str, Any]]:
+) -> Union[List[Dict[str, Any]], List[ImageContent]]:
     """
     Get the latest photos from a Mars rover.
     Requires a valid NASA API key.
@@ -321,38 +323,40 @@ async def get_latest_mars_photos(
         latest_photos = data.get("latest_photos", [])
 
         # Process and return photo data
-        result = []
-        for photo in latest_photos:
-            photo_data = {
-                "id": photo.get("id"),
-                "img_src": photo.get("img_src"),
-                "earth_date": photo.get("earth_date"),
-                "sol": photo.get("sol"),
-                "camera_name": photo.get("camera", {}).get("full_name"),
-                "camera_abbrev": photo.get("camera", {}).get("name"),
-                "rover_name": photo.get("rover", {}).get("name"),
-            }
-
-            # Optionally download and encode the actual image
-            if return_images and photo.get("img_src"):
-                try:
-                    async with session.get(photo["img_src"]) as img_response:
-                        if img_response.status == 200:
-                            img_bytes = await img_response.read()
-                            image = PILImage.open(io.BytesIO(img_bytes))
-                            photo_data["image"] = _encode_image(image)
-                        else:
-                            photo_data["image_error"] = (
-                                f"Failed to download image: status {img_response.status}"
-                            )
-                except Exception as img_error:
-                    photo_data["image_error"] = (
-                        f"Image processing error: {str(img_error)}"
-                    )
-
-            result.append(photo_data)
-
-        return result
+        if return_images:
+            # Return ImageContent objects for client rendering
+            images = []
+            for photo in latest_photos:
+                if photo.get("img_src"):
+                    try:
+                        async with session.get(photo["img_src"]) as img_response:
+                            if img_response.status == 200:
+                                img_bytes = await img_response.read()
+                                image = PILImage.open(io.BytesIO(img_bytes))
+                                images.append(_encode_image(image))
+                    except Exception as img_error:
+                        # Create error image for failed downloads
+                        error_image = PILImage.new("RGB", (400, 100), color="red")
+                        print(
+                            f"Image processing error for {photo.get('id')}: {str(img_error)}"
+                        )
+                        images.append(_encode_image(error_image))
+            return images
+        else:
+            # Return metadata only
+            result = []
+            for photo in latest_photos:
+                photo_data = {
+                    "id": photo.get("id"),
+                    "img_src": photo.get("img_src"),
+                    "earth_date": photo.get("earth_date"),
+                    "sol": photo.get("sol"),
+                    "camera_name": photo.get("camera", {}).get("full_name"),
+                    "camera_abbrev": photo.get("camera", {}).get("name"),
+                    "rover_name": photo.get("rover", {}).get("name"),
+                }
+                result.append(photo_data)
+            return result
 
     except Exception as e:
         print(f"Error occurred while fetching latest Mars rover photos: {e}")
@@ -372,7 +376,7 @@ async def get_rover_mission_info(nasa_api_key: str, rover: str) -> Dict[str, Any
 
     try:
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            url = f"https://api.nasa.gov/mars-photos/api/v1/rovers/{rover}/manifests"
+            url = f"https://api.nasa.gov/mars-photos/api/v1/manifests/{rover}"
             params = {"api_key": nasa_api_key}
 
             async with session.get(url, params=params) as response:
@@ -409,7 +413,7 @@ async def get_earth_imagery(
     date: Optional[str] = None,
     image_type: str = "natural",
     return_images: bool = False,
-) -> List[Dict[str, Any]]:
+) -> Union[List[Dict[str, Any]], List[ImageContent]]:
     """
     Get Earth imagery from EPIC (Earth Polychromatic Imaging Camera) on DSCOVR satellite.
     Requires a valid NASA API key.
@@ -437,57 +441,69 @@ async def get_earth_imagery(
                 data = await response.json()
 
         # Process EPIC data
-        result = []
-        for image in data:
-            # Extract date for image URL construction
-            image_date = (
-                image.get("date", "").split(" ")[0] if image.get("date") else ""
-            )
-            formatted_date = image_date.replace("-", "/") if image_date else ""
+        if return_images:
+            # Return ImageContent objects for client rendering
+            images = []
+            for image in data:
+                # Extract date for image URL construction
+                image_date = (
+                    image.get("date", "").split(" ")[0] if image.get("date") else ""
+                )
+                formatted_date = image_date.replace("-", "/") if image_date else ""
 
-            # Construct image URL
-            image_name = image.get("image", "")
-            if formatted_date and image_name:
-                image_url = f"https://epic.gsfc.nasa.gov/archive/{image_type}/{formatted_date}/png/{image_name}.png"
-            else:
-                image_url = None
+                # Construct image URL
+                image_name = image.get("image", "")
+                if formatted_date and image_name:
+                    image_url = f"https://epic.gsfc.nasa.gov/archive/{image_type}/{formatted_date}/png/{image_name}.png"
 
-            image_data = {
-                "image": image.get("image"),
-                "caption": image.get("caption"),
-                "date": image.get("date"),
-                "image_url": image_url,
-                "centroid_coordinates": image.get("centroid_coordinates", {}),
-                "dscovr_j2000_position": image.get("dscovr_j2000_position", {}),
-                "lunar_j2000_position": image.get("lunar_j2000_position", {}),
-                "sun_j2000_position": image.get("sun_j2000_position", {}),
-                "attitude_quaternions": image.get("attitude_quaternions", {}),
-                "coords": {
-                    "lat": image.get("centroid_coordinates", {}).get("lat"),
-                    "lon": image.get("centroid_coordinates", {}).get("lon"),
-                },
-            }
+                    try:
+                        async with session.get(image_url) as img_response:
+                            if img_response.status == 200:
+                                img_bytes = await img_response.read()
+                                pil_image = PILImage.open(io.BytesIO(img_bytes))
+                                images.append(_encode_image(pil_image))
+                    except Exception as img_error:
+                        # Create error image for failed downloads
+                        error_image = PILImage.new("RGB", (400, 100), color="red")
+                        print(
+                            f"Image processing error for {image.get('image')}: {str(img_error)}"
+                        )
+                        images.append(_encode_image(error_image))
+            return images
+        else:
+            # Return metadata only
+            result = []
+            for image in data:
+                # Extract date for image URL construction
+                image_date = (
+                    image.get("date", "").split(" ")[0] if image.get("date") else ""
+                )
+                formatted_date = image_date.replace("-", "/") if image_date else ""
 
-            # Optionally download and encode the actual image
-            if return_images and image_url:
-                try:
-                    async with session.get(image_url) as img_response:
-                        if img_response.status == 200:
-                            img_bytes = await img_response.read()
-                            pil_image = PILImage.open(io.BytesIO(img_bytes))
-                            image_data["rendered_image"] = _encode_image(pil_image)
-                        else:
-                            image_data["image_error"] = (
-                                f"Failed to download image: status {img_response.status}"
-                            )
-                except Exception as img_error:
-                    image_data["image_error"] = (
-                        f"Image processing error: {str(img_error)}"
-                    )
+                # Construct image URL
+                image_name = image.get("image", "")
+                if formatted_date and image_name:
+                    image_url = f"https://epic.gsfc.nasa.gov/archive/{image_type}/{formatted_date}/png/{image_name}.png"
+                else:
+                    image_url = None
 
-            result.append(image_data)
-
-        return result
+                image_data = {
+                    "image": image.get("image"),
+                    "caption": image.get("caption"),
+                    "date": image.get("date"),
+                    "image_url": image_url,
+                    "centroid_coordinates": image.get("centroid_coordinates", {}),
+                    "dscovr_j2000_position": image.get("dscovr_j2000_position", {}),
+                    "lunar_j2000_position": image.get("lunar_j2000_position", {}),
+                    "sun_j2000_position": image.get("sun_j2000_position", {}),
+                    "attitude_quaternions": image.get("attitude_quaternions", {}),
+                    "coords": {
+                        "lat": image.get("centroid_coordinates", {}).get("lat"),
+                        "lon": image.get("centroid_coordinates", {}).get("lon"),
+                    },
+                }
+                result.append(image_data)
+            return result
 
     except Exception as e:
         print(f"Error occurred while fetching Earth imagery: {e}")
@@ -545,17 +561,16 @@ async def get_natural_events(
     nasa_api_key: str,
     category: Optional[str] = None,
     status: str = "open",
-    limit: Optional[int] = None,
     days: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """
     Get natural events from EONET (Earth Observatory Natural Event Tracker).
     Note: EONET API doesn't require API key but we keep parameter for consistency.
+    Returns only 1 event per call to prevent timeout issues.
 
     Args:
         category: Event category (wildfires, severeStorms, volcanoes, etc.) - optional
         status: Event status - 'open', 'closed', or 'all' (default: 'open')
-        limit: Maximum number of events to return (optional)
         days: Only show events within last N days (optional)
     """
     timeout = ClientTimeout(total=30)
@@ -563,14 +578,12 @@ async def get_natural_events(
     try:
         async with aiohttp.ClientSession(timeout=timeout) as session:
             url = "https://eonet.gsfc.nasa.gov/api/v3/events"
-            params = {}
+            params = {"limit": 1}  # Enforce limit of 1 to prevent timeout
 
             if category:
                 params["category"] = category
             if status != "open":
                 params["status"] = status
-            if limit:
-                params["limit"] = limit
             if days:
                 params["days"] = days
 
@@ -672,4 +685,8 @@ def _safe_float(v):
 
 
 if __name__ == "__main__":
-    mcp.run(transport="sse", port=8000)
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "--http":
+        mcp.run(transport="sse")
+    else:
+        mcp.run(transport="stdio")
