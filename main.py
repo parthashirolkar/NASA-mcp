@@ -687,6 +687,6 @@ def _safe_float(v):
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1 and sys.argv[1] == "--http":
-        mcp.run(transport="sse")
+        mcp.run(transport="streamable-http")
     else:
         mcp.run(transport="stdio")
