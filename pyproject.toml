@@ -15,4 +15,12 @@ dependencies = [
     "pytz>=2025.2",
     "requests>=2.32.5",
     "ruff>=0.12.12",
+    "smithery>=0.1.23",
 ]
+
+[build-system]
+requires = ["hatchling", "uv"]
+build-backend = "hatchling.build"
+
+[tool.smithery]
+server = "nasa_mcp.server:create_server"

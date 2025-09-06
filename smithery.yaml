@@ -1,15 +1,1 @@
-runtime: "container"
-build:
-  dockerfile: "Dockerfile"
-  dockerBuildPath: "."
-startCommand:
-  type: "http"
-  configSchema:
-    type: "object"
-    properties:
-      nasa_api_key:
-        type: "string"
-        description: "NASA API key from api.nasa.gov for accessing NASA APIs"
-    required: ["nasa_api_key"]
-  exampleConfig:
-    nasa_api_key: "your_nasa_api_key_here"
+runtime: "python"
