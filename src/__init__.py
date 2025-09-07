@@ -1,1 +1,0 @@
-# NASA MCP Server package

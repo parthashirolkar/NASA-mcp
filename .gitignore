@@ -1,61 +1,18 @@
-# Python
+# Python-generated files
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
+*.py[oc]
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
 wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+*.egg-info
 
 # Virtual environments
-.env
 .venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-.venv/
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Logs
-*.log
-
-# Local configuration
+# Environment variables
+.env
 .env.local
-config.local.*
+.env.production
 
-# Docker
-.dockerignore
-
-# Temporary files
-*.tmp
-*.temp
+# Claude created markdown files
+CLAUDE.md
