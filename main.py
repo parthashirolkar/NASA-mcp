@@ -1,5 +1,6 @@
 from helper_functions import _encode_image
 import io
+import os
 import aiohttp
 from PIL import Image as PILImage
 from dotenv import load_dotenv
@@ -14,12 +15,25 @@ from typing import List, Dict, Any, Optional
 
 _ = load_dotenv()
 
+# Get NASA API key from environment
+NASA_API_KEY = os.getenv("NASA_API_KEY")
+
 mcp = FastMCP("NASA MCP")
 
 
 @mcp.tool()
-async def get_picture_of_the_day(nasa_api_key: str) -> ImageContent:
-    """Get the NASA Picture of the Day. Requires a valid NASA API key."""
+async def get_picture_of_the_day() -> ImageContent:
+    """
+    Get NASA's Astronomy Picture of the Day (APOD) as an image with metadata.
+    
+    Returns the daily featured astronomy image from NASA, which could be a photograph, 
+    diagram, or artwork related to space science. The image includes title, date, and 
+    detailed explanation printed to console. Use this when users ask about today's 
+    astronomy picture, space images, or want to see NASA's featured content.
+    
+    Returns:
+        ImageContent: The APOD image that can be displayed directly in the client
+    """
 
     # Set a longer timeout (30 seconds)
     timeout = ClientTimeout(total=30)
@@ -28,7 +42,7 @@ async def get_picture_of_the_day(nasa_api_key: str) -> ImageContent:
         async with aiohttp.ClientSession(timeout=timeout) as session:
             # Get NASA APOD data
             async with session.get(
-                f"https://api.nasa.gov/planetary/apod?api_key={nasa_api_key}"
+                f"https://api.nasa.gov/planetary/apod?api_key={NASA_API_KEY}"
             ) as response:
                 if response.status != 200:
                     raise Exception(f"NASA API returned status {response.status}")
@@ -73,14 +87,29 @@ async def get_time() -> str:
 
 @mcp.tool()
 async def get_neo_asteroids(
-    nasa_api_key: str, start_date: str, end_date: str
+    start_date: str, end_date: str
 ) -> List[Dict[str, Any]]:
     """
-    Retrieve Near Earth Objects between start_date and end_date and return a list of records (dicts).
-    Requires a valid NASA API key.
-
-    Each record (one per close-approach event) contains useful features (id, name, observed_date, etc.).
-    Returns a JSON-serializable list of dicts suitable for MCP/LM Studio.
+    Retrieve Near Earth Objects (NEOs) detected by NASA between specified dates.
+    
+    Searches for asteroids that come close to Earth's orbit and provides detailed 
+    information about their size, velocity, distance, and potential hazard status.
+    Use this when users ask about asteroids, space threats, or celestial objects.
+    
+    Args:
+        start_date: Start date in YYYY-MM-DD format (e.g., '2024-01-01')
+        end_date: End date in YYYY-MM-DD format (e.g., '2024-01-07')
+                 Note: Date range limited to 7 days maximum by NASA API
+    
+    Returns:
+        List of NEO records, each containing:
+        - id, name: Asteroid identification  
+        - observed_date: When it approaches closest to Earth
+        - estimated diameters in meters and kilometers
+        - relative velocity in km/s and km/h
+        - miss distance in astronomical units, lunar distance, km, and miles
+        - is_potentially_hazardous_asteroid: Boolean safety indicator
+        - orbital details and coordinates
     """
     timeout = ClientTimeout(total=30)
 
@@ -88,7 +117,7 @@ async def get_neo_asteroids(
         async with aiohttp.ClientSession(timeout=timeout) as session:
             url = (
                 f"https://api.nasa.gov/neo/rest/v1/feed?"
-                f"start_date={start_date}&end_date={end_date}&api_key={nasa_api_key}"
+                f"start_date={start_date}&end_date={end_date}&api_key={NASA_API_KEY}"
             )
             async with session.get(url) as response:
                 if response.status != 200:
@@ -200,7 +229,6 @@ async def get_neo_asteroids(
 
 @mcp.tool()
 async def get_mars_rover_photos(
-    nasa_api_key: str,
     rover: str,
     sol: Optional[int] = None,
     earth_date: Optional[str] = None,
@@ -209,23 +237,32 @@ async def get_mars_rover_photos(
     return_images: bool = False,
 ) -> List[Dict[str, Any]]:
     """
-    Get photos from Mars rovers (Curiosity, Opportunity, Spirit, Perseverance).
-    Requires a valid NASA API key.
+    Get photos from Mars rovers with detailed metadata and optional image download.
+    
+    Retrieves photos from NASA's Mars rovers including mission details, camera info, 
+    and coordinates. Use this when users want to see Mars surface images, explore 
+    rover missions, or get photos from specific dates or cameras.
 
     Args:
-        rover: Rover name (curiosity, opportunity, spirit, perseverance)
-        sol: Martian sol (day) - use either sol or earth_date, not both
-        earth_date: Earth date (YYYY-MM-DD format) - use either sol or earth_date
-        camera: Camera abbreviation (optional) - e.g., FHAZ, RHAZ, MAST, CHEMCAM, MAHLI, MARDI, NAVCAM
-        page: Page number for pagination (default: 1)
-        return_images: If True, download and return actual images (default: False, returns URLs only)
+        rover: Rover name - must be one of: 'curiosity', 'opportunity', 'spirit', 'perseverance'
+        sol: Martian sol (day since landing) - use either sol or earth_date, not both
+        earth_date: Earth date in YYYY-MM-DD format - use either sol or earth_date
+        camera: Camera abbreviation (optional). Available cameras vary by rover:
+               Common: FHAZ (Front Hazard), RHAZ (Rear Hazard), NAVCAM (Navigation)
+               Curiosity: MAST (Mast Camera), CHEMCAM, MAHLI, MARDI
+        page: Page number for pagination (default: 1, returns ~25 photos per page)
+        return_images: If True, downloads actual images; if False, returns URLs only
+    
+    Returns:
+        List of photo records with img_src URLs, dates, camera info, rover status, 
+        and optionally embedded image data if return_images=True
     """
     timeout = ClientTimeout(total=30)
 
     try:
         async with aiohttp.ClientSession(timeout=timeout) as session:
             # Build URL parameters
-            params = {"api_key": nasa_api_key, "page": page}
+            params = {"api_key": NASA_API_KEY, "page": page}
 
             if sol is not None:
                 params["sol"] = sol
@@ -293,15 +330,22 @@ async def get_mars_rover_photos(
 
 @mcp.tool()
 async def get_latest_mars_photos(
-    nasa_api_key: str, rover: str, return_images: bool = False
+    rover: str, return_images: bool = False
 ) -> List[Dict[str, Any]]:
     """
-    Get the latest photos from a Mars rover.
-    Requires a valid NASA API key.
+    Get the most recent photos from a specified Mars rover.
+    
+    Retrieves the latest available photos from a rover, which is useful when you want 
+    the most current Mars surface images without specifying dates. Automatically 
+    finds the rover's most recent photography session.
 
     Args:
-        rover: Rover name (curiosity, opportunity, spirit, perseverance)
-        return_images: If True, download and return actual images (default: False, returns URLs only)
+        rover: Rover name - must be one of: 'curiosity', 'opportunity', 'spirit', 'perseverance'
+        return_images: If True, downloads and embeds actual images; if False, returns URLs only
+    
+    Returns:
+        List of the most recent photo records with img_src URLs, dates, camera info,
+        and optionally embedded image data if return_images=True
     """
     timeout = ClientTimeout(total=30)
 
@@ -310,7 +354,7 @@ async def get_latest_mars_photos(
             url = (
                 f"https://api.nasa.gov/mars-photos/api/v1/rovers/{rover}/latest_photos"
             )
-            params = {"api_key": nasa_api_key}
+            params = {"api_key": NASA_API_KEY}
 
             async with session.get(url, params=params) as response:
                 if response.status != 200:
@@ -360,20 +404,32 @@ async def get_latest_mars_photos(
 
 
 @mcp.tool()
-async def get_rover_mission_info(nasa_api_key: str, rover: str) -> Dict[str, Any]:
+async def get_rover_mission_info(rover: str) -> Dict[str, Any]:
     """
-    Get mission manifest data for a Mars rover including available cameras and sol range.
-    Requires a valid NASA API key.
+    Get comprehensive mission information for a Mars rover including operational details.
+    
+    Retrieves mission manifest data including launch/landing dates, operational status,
+    available cameras, sol ranges, and total photo counts. Use this to understand 
+    rover capabilities before requesting specific photos or to get mission overview.
 
     Args:
-        rover: Rover name (curiosity, opportunity, spirit, perseverance)
+        rover: Rover name - must be one of: 'curiosity', 'opportunity', 'spirit', 'perseverance'
+    
+    Returns:
+        Mission data including:
+        - name, landing_date, launch_date, status (active/complete)
+        - max_sol: Latest sol (Martian day) with available data
+        - max_date: Latest Earth date with photos
+        - total_photos: Total number of photos taken by this rover
+        - cameras: List of available cameras with abbreviations and full names
+        - sols_with_photos: Number of sols that have photo data
     """
     timeout = ClientTimeout(total=30)
 
     try:
         async with aiohttp.ClientSession(timeout=timeout) as session:
             url = f"https://api.nasa.gov/mars-photos/api/v1/rovers/{rover}/manifests"
-            params = {"api_key": nasa_api_key}
+            params = {"api_key": NASA_API_KEY}
 
             async with session.get(url, params=params) as response:
                 if response.status != 200:
@@ -405,19 +461,30 @@ async def get_rover_mission_info(nasa_api_key: str, rover: str) -> Dict[str, Any
 
 @mcp.tool()
 async def get_earth_imagery(
-    nasa_api_key: str,
     date: Optional[str] = None,
     image_type: str = "natural",
     return_images: bool = False,
 ) -> List[Dict[str, Any]]:
     """
-    Get Earth imagery from EPIC (Earth Polychromatic Imaging Camera) on DSCOVR satellite.
-    Requires a valid NASA API key.
+    Get full-disc Earth images from NASA's EPIC camera on the DSCOVR satellite.
+    
+    Retrieves images of Earth from space showing the full sunlit side of the planet,
+    taken from the L1 Lagrange point ~1 million miles away. Images show weather patterns,
+    seasonal changes, and Earth's rotation. Use for Earth observation, climate study,
+    or when users want to see Earth from space.
 
     Args:
         date: Date in YYYY-MM-DD format (optional, defaults to most recent available)
-        image_type: 'natural' or 'enhanced' (default: 'natural')
-        return_images: If True, download and return actual images (default: False, returns URLs only)
+        image_type: Image processing type - 'natural' (true color) or 'enhanced' (processed)
+        return_images: If True, downloads actual images; if False, returns URLs and metadata only
+    
+    Returns:
+        List of Earth images with:
+        - image name, caption, date, and direct image_url
+        - centroid_coordinates: lat/lon of Earth's center in the image  
+        - satellite positions: DSCOVR, Moon, and Sun coordinates in J2000 reference
+        - attitude_quaternions: Camera orientation data
+        - rendered_image: embedded image data if return_images=True
     """
     timeout = ClientTimeout(total=30)
 
@@ -429,7 +496,7 @@ async def get_earth_imagery(
             else:
                 url = f"https://api.nasa.gov/EPIC/api/{image_type}"
 
-            params = {"api_key": nasa_api_key}
+            params = {"api_key": NASA_API_KEY}
 
             async with session.get(url, params=params) as response:
                 if response.status != 200:
@@ -496,21 +563,27 @@ async def get_earth_imagery(
 
 @mcp.tool()
 async def get_available_earth_dates(
-    nasa_api_key: str, image_type: str = "natural"
+    image_type: str = "natural"
 ) -> List[str]:
     """
-    Get all available dates for Earth imagery from EPIC.
-    Requires a valid NASA API key.
+    Get all available dates when EPIC Earth imagery was captured.
+    
+    Returns a chronological list of dates when the EPIC camera took Earth images.
+    Useful for finding available dates before requesting specific Earth imagery,
+    or for understanding the temporal coverage of the dataset.
 
     Args:
-        image_type: 'natural' or 'enhanced' (default: 'natural')
+        image_type: Image processing type - 'natural' (true color) or 'enhanced' (processed)
+    
+    Returns:
+        Sorted list of date strings in YYYY-MM-DD format when imagery is available
     """
     timeout = ClientTimeout(total=30)
 
     try:
         async with aiohttp.ClientSession(timeout=timeout) as session:
             url = f"https://api.nasa.gov/EPIC/api/{image_type}/all"
-            params = {"api_key": nasa_api_key}
+            params = {"api_key": NASA_API_KEY}
 
             async with session.get(url, params=params) as response:
                 if response.status != 200:
@@ -542,21 +615,36 @@ async def get_available_earth_dates(
 
 @mcp.tool()
 async def get_natural_events(
-    nasa_api_key: str,
     category: Optional[str] = None,
     status: str = "open",
     limit: Optional[int] = None,
     days: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Get natural events from EONET (Earth Observatory Natural Event Tracker).
-    Note: EONET API doesn't require API key but we keep parameter for consistency.
+    Get natural disaster and environmental events tracked by NASA's EONET system.
+    
+    Retrieves real-time data on natural events like wildfires, storms, volcanoes,
+    floods, and other environmental phenomena worldwide. Each event includes location,
+    timing, and source information. Use for disaster monitoring, environmental 
+    research, or when users ask about current natural events.
 
     Args:
-        category: Event category (wildfires, severeStorms, volcanoes, etc.) - optional
-        status: Event status - 'open', 'closed', or 'all' (default: 'open')
-        limit: Maximum number of events to return (optional)
-        days: Only show events within last N days (optional)
+        category: Event category (optional). Available categories:
+                 'wildfires', 'severeStorms', 'volcanoes', 'floods', 'droughts',
+                 'dustHaze', 'snowIce', 'earthquakes', 'landslides', 'manmade'
+        status: Event status - 'open' (ongoing), 'closed' (ended), or 'all' (default: 'open')
+        limit: Maximum number of events to return (optional, useful for large result sets)
+        days: Only show events from last N days (optional, e.g., days=7 for past week)
+    
+    Returns:
+        List of natural events with:
+        - id, title, description: Event identification and details
+        - categories: Event type classifications  
+        - latest_coordinates: Most recent lat/lon location
+        - latest_date: Most recent observation date
+        - closed: Whether event has ended
+        - sources: Data source URLs and references
+        - geometry_count: Number of location updates tracked
     """
     timeout = ClientTimeout(total=30)
 
@@ -626,10 +714,21 @@ async def get_natural_events(
 
 
 @mcp.tool()
-async def get_event_categories(nasa_api_key: str) -> List[Dict[str, Any]]:
+async def get_event_categories() -> List[Dict[str, Any]]:
     """
-    Get available event categories from EONET.
-    Note: EONET API doesn't require API key but we keep parameter for consistency.
+    Get all available natural event categories that can be tracked by EONET.
+    
+    Returns the complete list of event categories that EONET monitors, with 
+    descriptions and metadata. Use this to discover what types of natural 
+    events are available before querying specific categories with get_natural_events.
+    
+    Returns:
+        List of event categories with:
+        - id: Category identifier (use this value for get_natural_events category parameter)
+        - title: Human-readable category name
+        - description: Detailed explanation of what events this category covers
+        - link: Reference URL for more information
+        - layers: Associated map layer information
     """
     timeout = ClientTimeout(total=30)
 
@@ -672,4 +771,4 @@ def _safe_float(v):
 
 
 if __name__ == "__main__":
-    mcp.run(transport="sse", port=8000)
+    mcp.run(transport="stdio")
